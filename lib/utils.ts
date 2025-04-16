@@ -4,6 +4,9 @@ import figlet from "figlet";
 import { generate, setErrorLevel } from "qrcode-terminal";
 import si from "systeminformation"
 import "dotenv/config"
+import { matchRoute } from "./matchRoute";
+import { loadRoutes } from "./routesLoader";
+import path from "path"
 
 /**
  * Clears the console screen and displays a banner.
@@ -99,11 +102,23 @@ const allSystemInformation = async () =>
     }
 }
 
+/**
+ * Extracts the phone number from a JID (Jabber ID) string.
+ *
+ * @param jid - The JID string in the format "phoneNumber@domain".
+ * @returns The phone number portion of the JID.
+ */
+const jidToPhoneNumber = (jid: string) =>
+{
+    return jid.split("@")[0]
+}
+
 const utils = {
     clear,
     banner,
     printQR,
-    allSystemInformation
+    allSystemInformation,
+    jidToPhoneNumber
 }
 
 export default utils;

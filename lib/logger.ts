@@ -1,8 +1,17 @@
 import pino from "pino";
 import PinoPretty from "pino-pretty";
+import "dotenv/config"
 
 const MAX_DEPTH = 3;
 
+/**
+ * Recursively truncates the depth of an object or array to prevent excessive nesting.
+ * If the depth exceeds the maximum allowed depth, the value is replaced with a placeholder string.
+ *
+ * @param value - The value to be truncated. Can be an object, array, or any other type.
+ * @param depth - The current depth of recursion. Defaults to 0.
+ * @returns The truncated value with a limited depth.
+ */
 function truncateDepth (value: any, depth: number = 0): any
 {
   if (depth > MAX_DEPTH)
@@ -31,7 +40,7 @@ function truncateDepth (value: any, depth: number = 0): any
 
 const stream = PinoPretty({
   colorize: true,
-  hideObject: Boolean(process.env.SIMPLE_LOG) || true,
+  hideObject: Boolean(process.env.SIMPLE_LOG == 'true') || false,
   translateTime: "SYS:standard",
   ignore: "pid,hostname",
   customPrettifiers: {

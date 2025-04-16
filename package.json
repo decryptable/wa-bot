@@ -1,14 +1,17 @@
 {
   "name": "wa-bot",
   "module": "server.ts",
+  "scripts": {
+    "start": "bun --watch ."
+  },
   "type": "module",
   "devDependencies": {
-    "@types/bun": "latest",
-    "@types/express": "^5.0.1",
+    "@types/bun": "^1.2.9",
     "@types/figlet": "^1.7.0",
     "@types/fs-extra": "^11.0.4",
     "@types/kill-port": "^2.0.3",
     "@types/mime-types": "^2.1.4",
+    "@types/qrcode": "^1.5.5",
     "@types/qrcode-terminal": "^0.12.2"
   },
   "peerDependencies": {
@@ -17,21 +20,21 @@
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.16",
     "chalk": "^5.4.1",
+    "cross-env": "^7.0.3",
     "dotenv": "^16.5.0",
-    "express": "^5.1.0",
     "figlet": "^1.8.1",
     "fs-extra": "^11.3.0",
     "gradient-string": "^3.0.0",
     "kill-port": "^2.0.1",
     "kill-port-process": "^3.2.1",
+    "libphonenumber-js": "^1.12.6",
     "mime-types": "^3.0.1",
     "node-cache": "^5.1.2",
     "ora": "^8.2.0",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
+    "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
-    "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.1",
     "systeminformation": "^5.25.11"
   },
   "trustedDependencies": [

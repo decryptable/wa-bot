@@ -1,15 +1,19 @@
-import makeWASocket, { Browsers, DisconnectReason, useMultiFileAuthState, type UserFacingSocketConfig } from "@whiskeysockets/baileys"
+import makeWASocket, { Browsers, DisconnectReason, isJidUser, useMultiFileAuthState, type Contact } from "@whiskeysockets/baileys"
 import { Boom } from "@hapi/boom"
-import utils from "@/lib/utils"
 import logger from "@/lib/logger"
 import fs from "fs-extra"
 import path from "path"
 import NodeCache from "node-cache"
+import { createOrGetSession, getAllContacts, removeSession, saveContactsToSession } from "./sessions"
+import "dotenv/config"
+import utils from "./utils"
 
 
 const command_prefix = process.env.COMMAND_PREFIX || "!";
 const commands_handler_dir = "./commands/";
+const appName = process.env.APP_NAME || "WA Bot API";
 
+export let LOGGED_IN = true;
 /**
  * Asynchronously loads command modules from a specified directory and returns them as a record.
  *
@@ -49,61 +53,96 @@ const loadCommands = async (): Promise<Record<string, any>> =>
 const commands = await loadCommands();
 const commands_list = Object.keys(commands).map((command) =>
 {
-    return `${command_prefix}${command} - ${commands[command].description || "No description available"}`;
+    return `\`\`\`${command_prefix}${command}\`\`\` - ${commands[command].description || "No description available"}`;
 });
 
 const groupCache = new NodeCache({ stdTTL: 5 * 60, useClones: false })
 
-const commands_list_message = `Available commands:\n${commands_list}`;
+const commands_list_message = `Available commands:\n${commands_list.join("\n")}`;
 
 
 /**
- * Creates and initializes a WhatsApp Web socket connection with the provided configuration options.
- * 
- * This function sets up event listeners for various WhatsApp events, such as connection updates,
- * group updates, participant updates, incoming messages, and call events. It also handles
- * authentication state management, QR code generation, and reconnection logic.
- * 
- * @param {...UserFacingSocketConfig[]} opts - Optional configuration options for the socket.
- * 
- * @returns {Promise<ReturnType<typeof makeWASocket>>} A promise that resolves to the initialized WhatsApp socket instance.
- * 
+ * Creates a WhatsApp socket connection using the provided session ID.
+ * This function initializes the socket with various event listeners to handle
+ * authentication, group updates, call rejections, connection updates, and incoming messages.
+ *
+ * @param sessionId - A unique identifier for the session, used to manage authentication state.
+ * @returns A promise that resolves to the initialized WhatsApp socket instance.
+ *
  * @remarks
- * - The function uses multi-file authentication state stored in the `.sessions` directory.
- * - It caches group metadata for efficient access.
- * - Automatically rejects incoming calls and logs the events.
- * - Handles commands sent via messages, with support for a command prefix and argument parsing.
- * - Reconnects automatically if the connection is closed due to reasons other than logout.
- * - Sends a notification message when the connection is established and the user is online.
- * 
+ * - The function uses `useMultiFileAuthState` to manage authentication credentials.
+ * - It listens to multiple events such as `creds.update`, `groups.update`, `call`, 
+ *   `group-participants.update`, `connection.update`, and `messages.upsert`.
+ * - Automatically handles reconnection logic when the connection is closed, unless the user is logged out.
+ * - Processes incoming messages to execute commands based on a predefined command prefix.
+ *
  * @example
  * ```typescript
- * const socket = await createWhatsappSocket();
+ * const sessionId = "my-session-id";
+ * const socket = await createWhatsappSocket(sessionId);
  * socket.sendMessage("123456789@s.whatsapp.net", { text: "Hello, World!" });
  * ```
  */
-const createWhatsappSocket = async (...opts: UserFacingSocketConfig[]): Promise<ReturnType<typeof makeWASocket>> =>
+const createWhatsappSocket = async (sessionId: string): Promise<ReturnType<typeof makeWASocket>> =>
 {
-    const { state, saveCreds } = await useMultiFileAuthState(".sessions")
+
+    const sessionPath = `.sessions/${sessionId}`;
+    const qrFilePath = path.join(sessionPath, "qr.txt");
+
+    const { state, saveCreds } = await useMultiFileAuthState(sessionPath)
 
     const socket = makeWASocket({
         printQRInTerminal: false,
+        qrTimeout: 30 * 1000,
         logger: logger,
         syncFullHistory: false,
         cachedGroupMetadata: async (jid) => groupCache.get(jid),
         shouldIgnoreJid (jid)
         {
-            const disabledJid = ["@newsletter", "@bot", "3F214E7E1377071F2B0E"]
-
-            return disabledJid.some(disabled => jid.includes(disabled))
+            return !isJidUser(jid)
         },
         markOnlineOnConnect: true,
         browser: Browsers.windows(process.env.APP_NAME || "Desktop"),
-        ...{ ...opts, auth: state },
+        auth: state
     })
 
     socket.ev.on('creds.update', saveCreds)
 
+    socket.ev.on('contacts.upsert', data =>
+    {
+        // Filter out duplicate contacts based on their `id`
+        const uniqueContacts = data.filter((contact, index, self) =>
+            index === self.findIndex(c => c.id === contact.id)
+        );
+
+        // Sort contacts by `name`
+        uniqueContacts.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+        saveContactsToSession(uniqueContacts, sessionId);
+    });
+
+    socket.ev.on("contacts.update", async data =>
+    {
+        // Filter out duplicate contacts based on their `id`
+        const uniqueContacts = data.filter((contact, index, self) =>
+            index === self.findIndex(c => c.id === contact.id)
+        );
+
+        let oldContacts = await getAllContacts(sessionId);
+
+        // Combine old and new contacts, then filter by unique `id`
+        const combinedContacts = [...oldContacts, ...uniqueContacts];
+        const mergedContacts = combinedContacts.filter((contact, index, self) =>
+            index === self.findIndex(c => c.id === contact.id)
+        );
+
+        // Sort contacts by `name`
+        const validContacts = mergedContacts
+            .filter(contact => contact.id !== undefined) as Contact[];
+        validContacts.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+
+        saveContactsToSession(validContacts, sessionId);
+    });
     socket.ev.on('groups.update', async ([event]) =>
     {
         const metadata = await socket.groupMetadata(event.id as string)
@@ -131,66 +170,83 @@ const createWhatsappSocket = async (...opts: UserFacingSocketConfig[]): Promise<
         groupCache.set(event.id, metadata)
     })
 
-    socket.ev.on('connection.update', (update) =>
+    socket.ev.on('connection.update', async (update) =>
     {
-        const { connection, lastDisconnect, isNewLogin, isOnline, qr, legacy } = update
+        const { connection, lastDisconnect, isNewLogin, isOnline, qr } = update;
+
         if (connection === 'close')
         {
+            logger.warn(lastDisconnect, "Connection closed")
+
             const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut
-            logger.info('Connection closed due to ', lastDisconnect?.error, ', reconnecting ', shouldReconnect)
             if (shouldReconnect)
             {
-                createWhatsappSocket()
+                createWhatsappSocket(sessionId);
             } else
             {
-                logger.info('Connection closed. You are logged out.')
-                fs.removeSync('.sessions')
-                logger.info('Session removed.')
-                createWhatsappSocket()
+                logger.info(`Session ${sessionId} logged out.`);
+                LOGGED_IN = false;
+                if (socket.authState.creds.me?.id)
+                {
+                    removeSession(sessionId);
+                }
             }
         }
+
         if (isNewLogin)
         {
-            logger.info('New login detected')
+            logger.info(`Connected to ${appName}!`);
+            fs.removeSync(qrFilePath)
         }
+
         if (qr)
         {
-            utils.printQR(qr)
+            try
+            {
+
+                if (!fs.existsSync(sessionPath))
+                {
+                    fs.mkdirSync(sessionPath, { recursive: true });
+                }
+
+
+                fs.writeFileSync(qrFilePath, qr);
+                logger.info(`QR code saved to ${qrFilePath}`);
+            } catch (error)
+            {
+                logger.error(error, `Failed to save QR code for session ${sessionId}`);
+            }
         }
 
         if (connection === 'open')
         {
-            logger.info('Connection opened')
+            logger.info('Connection opened');
+            fs.removeSync(qrFilePath)
         }
 
         if (connection === 'connecting')
         {
-            logger.info('Connecting to Whatsapp...')
+            logger.info('Connecting to Whatsapp...');
         }
 
         if (isOnline)
         {
             socket.sendMessage(socket.user?.id as string, {
-                text: "You're now online!"
+                text: `You're now connected with session: \`\`\`${sessionId}\`\`\``
             })
+            fs.removeSync(qrFilePath)
         }
+    });
 
-        if (legacy)
-        {
-            logger.info('Legacy connection detected')
-        }
-
-        if (connection === 'connecting' && !isOnline)
-        {
-            logger.info('You are offline')
-        }
-    })
 
     socket.ev.on("messages.upsert", async (m) =>
     {
         try
         {
             if (!m.messages || m.messages.length === 0) return
+
+
+            logger.info(m, "new message!")
 
             const msg = m.messages[0]
 
@@ -205,6 +261,7 @@ const createWhatsappSocket = async (...opts: UserFacingSocketConfig[]): Promise<
                     .split("|")
                     .map((arg) => arg.trim());
                 const jid = msg.key.participant || msg.key.remoteJid as string;
+                const phoneNumber = utils.jidToPhoneNumber(jid)
 
                 const isCommand = msg.message.conversation.startsWith(command_prefix);
                 if (!isCommand) return;
@@ -223,7 +280,7 @@ const createWhatsappSocket = async (...opts: UserFacingSocketConfig[]): Promise<
 
                 if (commands[command])
                 {
-                    logger.info(`Executing command: ${command} from ${jid} with args: ${args.length > 0 ? args : "-"}`);
+                    logger.info(`Executing command: ${command} from ${phoneNumber} with args: ${args.length > 0 ? args : "-"}`);
                     commands[command].execute(socket, { jid, msg, args });
                 }
             }
@@ -235,6 +292,7 @@ const createWhatsappSocket = async (...opts: UserFacingSocketConfig[]): Promise<
                     .split("|")
                     .map((arg) => arg.trim());
                 const jid = msg.key.participant || msg.key.remoteJid as string;
+                const phoneNumber = utils.jidToPhoneNumber(jid)
 
                 const isCommand = msg.message.extendedTextMessage.text.startsWith(command_prefix);
                 if (!isCommand) return;
@@ -253,7 +311,7 @@ const createWhatsappSocket = async (...opts: UserFacingSocketConfig[]): Promise<
 
                 if (commands[command])
                 {
-                    logger.info(`Executing command: ${command} from ${jid} with args: ${args.length > 0 ? args : "-"}`);
+                    logger.info(`Executing command: ${command} from ${phoneNumber} with args: ${args.length > 0 ? args : "-"}`);
                     commands[command].execute(socket, { jid, msg, args });
                 }
             }
@@ -262,7 +320,6 @@ const createWhatsappSocket = async (...opts: UserFacingSocketConfig[]): Promise<
             logger.error(error, "Error in 'message.upsert' event!")
         }
     })
-
     return socket;
 }
 

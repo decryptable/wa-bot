@@ -2,15 +2,9 @@ import type { proto } from "@whiskeysockets/baileys";
 import type createWhatsappSocket from "../lib/socket";
 import utils from "../lib/utils";
 
-/**
- * from the command handler, you can call the command like this:
- * commands[command].execute(socket, { jid, sender, args });
- */
-
 const pingCommand = {
     name: "ping",
     description: "Ping the bot",
-    usage: "!ping",
     execute: async (socket: ReturnType<typeof createWhatsappSocket>, {
         jid,
         msg,
