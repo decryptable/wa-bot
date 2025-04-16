@@ -9,20 +9,39 @@ Simple WhatsApp Bot using Baileys implementation
 
 ## Project Structure
 
-```txt
-|-bun.lockb
-|-bunfig.toml
-|-commands
-| |-ping.ts
-| |- ... other command handlers
-|-lib
-| |-logger.ts
-| |-socket.ts
-| |-utils.ts
-| |-whatsapp.ts
-|-package.json
-|-preload.ts
-|-README.md
-|-server.ts
-|-tsconfig.json
+```log
+wa-bot
+├── .env.example
+├── .env.local
+├── .gitignore
+├── bun.lockb
+├── bunfig.toml
+├── package.json
+├── preload.ts
+├── README.md
+├── server.ts
+├── tsconfig.json
+├── commands/
+│   ├── logout.ts
+│   └── ping.ts
+├── lib/
+│   ├── logger.ts
+│   ├── matchRoute.ts
+│   ├── routesLoader.ts
+│   ├── sessions.ts
+│   ├── socket.ts
+│   └── utils.ts
+├── public/
+│   └── banner.jpg
+└── routes/
+    ├── index.ts
+    └── api/
+        ├── sessions.ts
+        ├── status.ts
+        └── [sessionId]/
+            ├── getContacts.ts
+            ├── init.ts
+            ├── logout.ts
+            ├── qr.ts
+            └── status.ts
 ```
