@@ -23,6 +23,44 @@ export const createOrGetSession = async (sessionId: string): Promise<ReturnType<
 };
 
 /**
+ * Initialize all existing sessions from the .sessions folder.
+ */
+export const initializeAllSessions = async (): Promise<void> =>
+{
+    const sessionsPath = `.sessions`;
+
+    try
+    {
+        if (!fs.existsSync(sessionsPath))
+        {
+            logger.info("No sessions folder found. Skipping initialization.");
+            return;
+        }
+
+        const sessionIds = fs.readdirSync(sessionsPath).filter((file) =>
+        {
+            const sessionPath = `${sessionsPath}/${file}`;
+            return fs.statSync(sessionPath).isDirectory();
+        });
+
+        for (const sessionId of sessionIds)
+        {
+            if (!sessionPromises[sessionId])
+            {
+                logger.info(`Initializing session: ${sessionId}`);
+                sessionPromises[sessionId] = createWhatsappSocket(sessionId);
+            }
+        }
+
+        logger.info(`All sessions initialized successfully. Total: ${sessionIds.length}`);
+    } catch (error)
+    {
+        logger.error(error, "Failed to initialize sessions.");
+        throw new Error("Failed to initialize sessions.");
+    }
+};
+
+/**
  * Remove a WhatsApp session by sessionId.
  */
 export const removeSession = async (sessionId: string): Promise<void> =>

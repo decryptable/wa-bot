@@ -1,6 +1,7 @@
 import utils from "@/lib/utils";
 import kill from "kill-port"
 import logger from "@/lib/logger";
+import { initializeAllSessions } from "./lib/sessions";
 
 const PORT: number = Number(process.env.PORT) || 3000;
 
@@ -15,3 +16,5 @@ await kill(PORT)
     {
         logger.error(err, `Failed to kill proccess on port ${PORT}!`)
     })
+
+initializeAllSessions();

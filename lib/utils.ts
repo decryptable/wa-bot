@@ -113,12 +113,24 @@ const jidToPhoneNumber = (jid: string) =>
     return jid.split("@")[0]
 }
 
+const validateParams = (body: Record<string, any>, required: string[]) =>
+{
+    const missing = required.filter(key => !body[key]);
+    if (missing.length)
+    {
+        return `params \`${missing.join(", ")}\` ${missing.length > 1 ? "are" : "is"} required!`;
+    }
+    return null;
+}
+
+
 const utils = {
     clear,
     banner,
     printQR,
     allSystemInformation,
-    jidToPhoneNumber
+    jidToPhoneNumber,
+    validateParams
 }
 
 export default utils;

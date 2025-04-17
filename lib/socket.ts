@@ -1,4 +1,4 @@
-import makeWASocket, { Browsers, DisconnectReason, isJidUser, useMultiFileAuthState, type Contact } from "@whiskeysockets/baileys"
+import makeWASocket, { Browsers, DisconnectReason, isJidGroup, isJidUser, useMultiFileAuthState, type Contact } from "@whiskeysockets/baileys"
 import { Boom } from "@hapi/boom"
 import logger from "@/lib/logger"
 import fs from "fs-extra"
@@ -95,11 +95,11 @@ const createWhatsappSocket = async (sessionId: string): Promise<ReturnType<typeo
         printQRInTerminal: false,
         qrTimeout: 30 * 1000,
         logger: logger,
-        syncFullHistory: false,
+        syncFullHistory: true,
         cachedGroupMetadata: async (jid) => groupCache.get(jid),
         shouldIgnoreJid (jid)
         {
-            return !isJidUser(jid)
+            return !isJidUser(jid) || !isJidGroup(jid)
         },
         markOnlineOnConnect: true,
         browser: Browsers.windows(process.env.APP_NAME || "Desktop"),
@@ -231,9 +231,6 @@ const createWhatsappSocket = async (sessionId: string): Promise<ReturnType<typeo
 
         if (isOnline)
         {
-            socket.sendMessage(socket.user?.id as string, {
-                text: `You're now connected with session: \`\`\`${sessionId}\`\`\``
-            })
             fs.removeSync(qrFilePath)
         }
     });

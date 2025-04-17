@@ -26,6 +26,6 @@ export default async (req: Request, params: { sessionId: string }) =>
     } catch (error)
     {
         const errorMessage = error instanceof Error ? error.message : "An unknown error occurred";
-        return Response.json({ message: errorMessage }, { status: 500 });
+        return Response.json({ error: errorMessage }, { status: 500 });
     }
 };
