@@ -1,8 +1,4 @@
-# WA Bot
-
 ![WA Bot](./public/banner.jpg)
-
-Simple WhatsApp Bot using Baileys implementation
 
 > [!IMPORTANT]
 > This project is currently under development. Production use isn't recommended unless you know what you're doing!
