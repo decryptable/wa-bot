@@ -1,0 +1,3 @@
+[submodule "etc/libai"]
+	path = etc/libai
+	url = https://github.com/decryptable/libai
