@@ -1,9 +1,8 @@
 import { createOrGetSession, isSessionExist } from "@/lib/sessions";
 import logger from "@/lib/logger";
-import "dotenv/config"
 import utils from "@/lib/utils";
 
-const command_prefix = process.env.COMMAND_PREFIX || "!";
+const command_prefix = utils.getCommandPrefix();
 
 const logout_command = `${command_prefix}logout`
 

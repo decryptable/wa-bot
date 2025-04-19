@@ -17,16 +17,14 @@ const pingCommand = {
     {
         const sock = await socket
         // system information
-        let message;
-
-        sock.sendPresenceUpdate("composing", jid)
+        let message = "";
 
         const nodeVersion = process.version;
-        const appVersion = process.env.APP_VERSION || "1.0.0";
-        const appName = process.env.APP_NAME || "WA Bot API";
-        const appAuthor = process.env.APP_AUTHOR || "Decryptable";
-        const appDescription = process.env.APP_DESCRIPTION || "Decryptable Bot";
-        const appEnv = process.env.NODE_ENV || "development";
+        const appVersion = utils.getAppVersion()
+        const appName = utils.getAppName()
+        const appAuthor = utils.getAppAuthor();
+        const appDescription = utils.getAppDescription();
+        const appEnv = utils.getNodeEnv();
 
         const systeminformation = await utils.allSystemInformation();
 
@@ -62,8 +60,6 @@ const pingCommand = {
         message += `\n*NodeJS version:* ${nodeVersion}`
         message += `\n`
         message += formatRecursive(systeminformation);
-
-        sock.sendPresenceUpdate("unavailable", jid)
 
         sock.sendMessage(jid, { text: message }, {
             quoted: msg

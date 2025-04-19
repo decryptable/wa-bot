@@ -7,14 +7,21 @@ const PORT: number = Number(process.env.PORT) || 3000;
 
 utils.clear();
 
-await kill(PORT)
-    .then(() =>
-    {
-        logger.info(`Killed another proccess on port ${PORT}!`)
-    })
-    .catch(err =>
-    {
-        logger.error(err, `Failed to kill proccess on port ${PORT}!`)
-    })
+const preload = async () =>
+{
+    await kill(PORT)
+        .then(() =>
+        {
+            logger.info(`Killed another proccess on port ${PORT}!`)
+        })
+        .catch(err =>
+        {
+            logger.error(err, `Failed to kill proccess on port ${PORT}!`)
+        })
 
-initializeAllSessions();
+}
+
+preload().finally(() =>
+{
+    initializeAllSessions();
+})

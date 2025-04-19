@@ -2,7 +2,8 @@
   "name": "wa-bot",
   "module": "server.ts",
   "scripts": {
-    "start": "bun --watch ."
+    "start": "bun --watch .",
+    "build": "bun run esbuild.config.ts"
   },
   "type": "module",
   "devDependencies": {
@@ -10,12 +11,10 @@
     "@types/figlet": "^1.7.0",
     "@types/fs-extra": "^11.0.4",
     "@types/kill-port": "^2.0.3",
-    "@types/mime-types": "^2.1.4",
-    "@types/qrcode": "^1.5.5",
-    "@types/qrcode-terminal": "^0.12.2"
+    "@types/qrcode": "^1.5.5"
   },
   "peerDependencies": {
-    "typescript": "^5.0.0"
+    "typescript": "^5.8.3"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.16",
@@ -26,16 +25,16 @@
     "fs-extra": "^11.3.0",
     "gradient-string": "^3.0.0",
     "kill-port": "^2.0.1",
-    "kill-port-process": "^3.2.1",
-    "libphonenumber-js": "^1.12.6",
-    "mime-types": "^3.0.1",
+    "link-preview-js": "^3.0.14",
     "node-cache": "^5.1.2",
     "ora": "^8.2.0",
     "pino": "^9.6.0",
     "pino-pretty": "^13.0.0",
     "qrcode": "^1.5.4",
-    "qrcode-terminal": "^0.12.0",
+    "remark-parse": "^11.0.0",
     "systeminformation": "^5.25.11",
+    "unified": "^11.0.5",
+    "unist-util-visit": "^5.0.0",
     "zod": "^3.24.2"
   },
   "trustedDependencies": [

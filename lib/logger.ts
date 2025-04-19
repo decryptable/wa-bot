@@ -40,7 +40,7 @@ function truncateDepth (value: any, depth: number = 0): any
 
 const stream = PinoPretty({
   colorize: true,
-  hideObject: Boolean(process.env.SIMPLE_LOG == 'true') || false,
+  // hideObject: Boolean(process.env.SIMPLE_LOG == 'true') || true,
   translateTime: "SYS:standard",
   ignore: "pid,hostname",
   customPrettifiers: {
@@ -50,16 +50,16 @@ const stream = PinoPretty({
 
 const logger = pino(
   {
-    hooks: {
-      logMethod (args, method)
-      {
-        if (args.length > 1 && typeof args[0] === "object")
-        {
-          args[0] = truncateDepth(args[0]);
-        }
-        return method.apply(this, args);
-      },
-    },
+    // hooks: {
+    //   logMethod (args, method)
+    //   {
+    //     if (args.length > 1 && typeof args[0] === "object")
+    //     {
+    //       args[0] = truncateDepth(args[0]);
+    //     }
+    //     return method.apply(this, args);
+    //   },
+    // },
   },
   stream
 );

@@ -1,6 +1,0 @@
-smol = true
-
-preload = ["./preload.ts"]
-
-[run]
-silent = true

@@ -1,17 +1,18 @@
-import makeWASocket, { Browsers, DisconnectReason, isJidGroup, isJidUser, useMultiFileAuthState, type Contact } from "@whiskeysockets/baileys"
+import makeWASocket, { Browsers, DisconnectReason, isJidBroadcast, isJidGroup, isJidNewsletter, isJidStatusBroadcast, isJidUser, proto, useMultiFileAuthState, type Contact } from "@whiskeysockets/baileys"
 import { Boom } from "@hapi/boom"
 import logger from "@/lib/logger"
 import fs from "fs-extra"
 import path from "path"
 import NodeCache from "node-cache"
-import { createOrGetSession, getAllContacts, removeSession, saveContactsToSession } from "./sessions"
-import "dotenv/config"
+import { getAllContacts, removeSession, saveContactsToSession } from "./sessions"
 import utils from "./utils"
+import Long from "long"
 
 
-const command_prefix = process.env.COMMAND_PREFIX || "!";
+const command_prefix = utils.getCommandPrefix()
 const commands_handler_dir = "./commands/";
-const appName = process.env.APP_NAME || "WA Bot API";
+const appName = utils.getAppName();
+const appVersion = utils.getAppVersion();
 
 export let LOGGED_IN = true;
 /**
@@ -50,15 +51,6 @@ const loadCommands = async (): Promise<Record<string, any>> =>
     return commands;
 };
 
-const commands = await loadCommands();
-const commands_list = Object.keys(commands).map((command) =>
-{
-    return `\`\`\`${command_prefix}${command}\`\`\` - ${commands[command].description || "No description available"}`;
-});
-
-const groupCache = new NodeCache({ stdTTL: 5 * 60, useClones: false })
-
-const commands_list_message = `Available commands:\n${commands_list.join("\n")}`;
 
 
 /**
@@ -85,6 +77,35 @@ const commands_list_message = `Available commands:\n${commands_list.join("\n")}`
  */
 const createWhatsappSocket = async (sessionId: string): Promise<ReturnType<typeof makeWASocket>> =>
 {
+    const contextInfo: proto.IContextInfo = {
+        expiration: 10,
+        disappearingMode: {
+            initiatedByMe: true,
+            initiator: 1,
+            trigger: 1,
+        },
+        externalAdReply: {
+            thumbnail: fs.readFileSync("./public/icon.png"),
+            sourceUrl: `author: ${utils.getAppAuthor()}`,
+            mediaUrl: `author: ${utils.getAppAuthor()}`,
+            mediaType: 1,
+            body: `${utils.getAppDescription()} - v${utils.getAppVersion()}`,
+            title: utils.getAppName(),
+            showAdAttribution: true,
+            renderLargerThumbnail: true
+        },
+    }
+
+    const commands = await loadCommands();
+    const commands_list = Object.keys(commands).map((command) =>
+    {
+        return `\`\`\`${command_prefix}${command}\`\`\` - ${commands[command].description || "No description available"}`;
+    });
+
+    const groupCache = new NodeCache({ stdTTL: 5 * 60, useClones: false })
+
+    const commands_list_message = `Available commands:\n${commands_list.join("\n")}`;
+
 
     const sessionPath = `.sessions/${sessionId}`;
     const qrFilePath = path.join(sessionPath, "qr.txt");
@@ -95,15 +116,64 @@ const createWhatsappSocket = async (sessionId: string): Promise<ReturnType<typeo
         printQRInTerminal: false,
         qrTimeout: 30 * 1000,
         logger: logger,
+        generateHighQualityLinkPreview: true,
         syncFullHistory: true,
         cachedGroupMetadata: async (jid) => groupCache.get(jid),
         shouldIgnoreJid (jid)
         {
-            return !isJidUser(jid) || !isJidGroup(jid)
+            const isNewsletter = isJidNewsletter(jid);
+            const isBroadcast = isJidBroadcast(jid);
+            const isStatus = isJidStatusBroadcast(jid);
+
+            return isNewsletter || isBroadcast || isStatus;
         },
         markOnlineOnConnect: true,
-        browser: Browsers.windows(process.env.APP_NAME || "Desktop"),
-        auth: state
+        browser: Browsers.windows(appName),
+        auth: state,
+        patchMessageBeforeSending (msg, recipientJids)
+        {
+            const mergeContextInfo = (original?: proto.IContextInfo): proto.IContextInfo => ({
+                ...(original || {}),
+                ...(contextInfo || {}),
+            });
+
+            if (msg.extendedTextMessage)
+            {
+                msg.extendedTextMessage.contextInfo = mergeContextInfo(msg.extendedTextMessage.contextInfo);
+            }
+
+            if (msg.imageMessage)
+            {
+                msg.imageMessage.contextInfo = mergeContextInfo(msg.imageMessage.contextInfo);
+            }
+
+            if (msg.videoMessage)
+            {
+                msg.videoMessage.contextInfo = mergeContextInfo(msg.videoMessage.contextInfo);
+            }
+
+            if (msg.stickerMessage)
+            {
+                msg.stickerMessage.contextInfo = mergeContextInfo(msg.stickerMessage.contextInfo);
+            }
+
+            if (msg.documentMessage)
+            {
+                msg.documentMessage.contextInfo = mergeContextInfo(msg.documentMessage.contextInfo);
+            }
+
+            if (msg.contactMessage)
+            {
+                msg.contactMessage.contextInfo = mergeContextInfo(msg.contactMessage.contextInfo);
+            }
+
+            if (msg.ptvMessage)
+            {
+                msg.ptvMessage.contextInfo = mergeContextInfo(msg.ptvMessage.contextInfo);
+            }
+
+            return msg;
+        },
     })
 
     socket.ev.on('creds.update', saveCreds)
@@ -243,9 +313,9 @@ const createWhatsappSocket = async (sessionId: string): Promise<ReturnType<typeo
             if (!m.messages || m.messages.length === 0) return
 
 
-            logger.info(m, "new message!")
 
             const msg = m.messages[0]
+            logger.info(m, "new message!")
 
             if (msg.key && msg.key.remoteJid === "status@broadcast") return
 
@@ -256,8 +326,9 @@ const createWhatsappSocket = async (sessionId: string): Promise<ReturnType<typeo
                 const args = msg.message.conversation
                     .replace(command_prefix + command, "")
                     .split("|")
-                    .map((arg) => arg.trim());
-                const jid = msg.key.participant || msg.key.remoteJid as string;
+                    .map(arg => arg.trim())
+                    .filter(arg => arg.length > 0);
+                const jid = msg.key.remoteJid || msg.key.participant as string;
                 const phoneNumber = utils.jidToPhoneNumber(jid)
 
                 const isCommand = msg.message.conversation.startsWith(command_prefix);
@@ -271,24 +342,26 @@ const createWhatsappSocket = async (sessionId: string): Promise<ReturnType<typeo
                         return;
                     }
 
-                    await socket.sendMessage(jid, { text: commands_list_message });
+                    await socket.sendMessage(jid, { text: commands_list_message, contextInfo, });
                     return;
                 }
 
                 if (commands[command])
                 {
-                    logger.info(`Executing command: ${command} from ${phoneNumber} with args: ${args.length > 0 ? args : "-"}`);
+                    logger.info(`Executing command: ${command} from ${phoneNumber} ${args.length > 0 ? `with args: ${args}` : ""}`);
                     commands[command].execute(socket, { jid, msg, args });
                 }
             }
-            else if (m.type === "notify" && msg.message?.extendedTextMessage?.text)
+
+            if (m.type === "notify" && msg.message?.extendedTextMessage?.text)
             {
                 const command = msg.message.extendedTextMessage.text.split(" ")[0].replace(command_prefix, "");
                 const args = msg.message.extendedTextMessage.text
                     .replace(command_prefix + command, "")
                     .split("|")
-                    .map((arg) => arg.trim());
-                const jid = msg.key.participant || msg.key.remoteJid as string;
+                    .map(arg => arg.trim())
+                    .filter(arg => arg.length > 0);
+                const jid = msg.key.remoteJid || msg.key.participant as string;
                 const phoneNumber = utils.jidToPhoneNumber(jid)
 
                 const isCommand = msg.message.extendedTextMessage.text.startsWith(command_prefix);
@@ -302,13 +375,46 @@ const createWhatsappSocket = async (sessionId: string): Promise<ReturnType<typeo
                         return;
                     }
 
-                    await socket.sendMessage(jid, { text: commands_list_message });
+                    await socket.sendMessage(jid, { text: commands_list_message, contextInfo });
                     return;
                 }
 
                 if (commands[command])
                 {
-                    logger.info(`Executing command: ${command} from ${phoneNumber} with args: ${args.length > 0 ? args : "-"}`);
+                    logger.info(`Executing command: ${command} from ${phoneNumber} ${args.length > 0 ? `with args: ${args}` : ""}`);
+                    commands[command].execute(socket, { jid, msg, args });
+                }
+            }
+
+            if (m.type === "notify" && msg.message?.ephemeralMessage?.message.extendedTextMessage.text)
+            {
+                const command = msg.message?.ephemeralMessage?.message.extendedTextMessage.text.split(" ")[0].replace(command_prefix, "");
+                const args = msg.message?.ephemeralMessage?.message.extendedTextMessage.text
+                    .replace(command_prefix + command, "")
+                    .split("|")
+                    .map(arg => arg.trim())
+                    .filter(arg => arg.length > 0);
+                const jid = msg.key.remoteJid || msg.key.participant as string;
+                const phoneNumber = utils.jidToPhoneNumber(jid)
+
+                const isCommand = msg.message?.ephemeralMessage?.message.extendedTextMessage.text.startsWith(command_prefix);
+                if (!isCommand) return;
+
+                if (command === "help" || command === "commands")
+                {
+                    if (Object.keys(commands).length === 0)
+                    {
+                        await socket.sendMessage(jid, { text: "No commands available." });
+                        return;
+                    }
+
+                    await socket.sendMessage(jid, { text: commands_list_message, contextInfo });
+                    return;
+                }
+
+                if (commands[command])
+                {
+                    logger.info(`Executing command: ${command} from ${phoneNumber} ${args.length > 0 ? `with args: ${args}` : ""}`);
                     commands[command].execute(socket, { jid, msg, args });
                 }
             }

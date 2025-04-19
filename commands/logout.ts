@@ -1,3 +1,7 @@
+/**
+ * Don't delete/edit this file directly!!
+ */
+
 import type { proto } from "@whiskeysockets/baileys";
 import type createWhatsappSocket from "../lib/socket";
 import utils from "@/lib/utils";
@@ -29,16 +33,12 @@ const pingCommand = {
             return;
         };
         
-        sock.sendPresenceUpdate("composing", jid)
-
         await sock.sendMessage(jid, {
             text: `Successfully disconnect for WhatsApp account`,
             mentions: [jid]
         }, {
             quoted: msg
         })
-
-        sock.sendPresenceUpdate("unavailable", jid)
 
         sock.logout()
     }

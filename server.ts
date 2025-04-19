@@ -2,15 +2,15 @@ import { loadRoutes } from "@/lib/routesLoader";
 import logger from "@/lib/logger";
 import path from "path"
 import { matchRoute } from "./lib/matchRoute";
-// import qrLoader from "@/static/qr.html"
+import "./preload"
 
 const PORT: number = Number(process.env.PORT) || 3000;
 
 // Load routes dynamically
-const routes = await loadRoutes(path.resolve(__dirname, "routes"));
 
 const main = async (): Promise<void> =>
-{
+    {
+    const routes = await loadRoutes(path.resolve(__dirname, "routes"));
     const server = Bun.serve({
         port: PORT,
         fetch (req)
